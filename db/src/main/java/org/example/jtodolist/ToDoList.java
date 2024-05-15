@@ -43,9 +43,7 @@ public class ToDoList {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("List ID: " + id + "\nName: " + name + "\n");
-        for (Task task : tasks) {
-            sb.append(task.toString()).append("\n");
-        }
+
         return sb.toString();
     }
 }

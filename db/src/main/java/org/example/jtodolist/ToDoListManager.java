@@ -1,6 +1,8 @@
 package org.example.jtodolist;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 public class ToDoListManager {
@@ -9,7 +11,7 @@ public class ToDoListManager {
     private static final String DB_PASSWORD = "root";
 
     public static void main(String[] args) {
-        try(Connection connection= DriverManager.getConnection(DB_URL,DB_USERNAME,DB_PASSWORD)) {
+        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD)) {
             createTablesIfNotExist(connection);
             Scanner scanner = new Scanner(System.in);
 
@@ -23,7 +25,7 @@ public class ToDoListManager {
                         createToDoList(connection);
                         break;
                     case 2:
-                       // viewToDoLists(connection);
+                        viewToDoLists(connection);
                         break;
                     case 3:
                         System.out.println("Exiting application...");
@@ -60,20 +62,137 @@ public class ToDoListManager {
 
         }
     }
-    private static  void createToDoList(Connection connection)throws SQLException{
-        Scanner scanner= new Scanner(System.in);
+
+    private static void createToDoList(Connection connection) throws SQLException {
+        Scanner scanner = new Scanner(System.in);
         System.out.println("Enter to do list name:");
-        String listName=scanner.nextLine();
-        String query="INSERT INTO todolist (name) VALUE(?)";
-        try(PreparedStatement preparedStatement=connection.prepareStatement(query,Statement.RETURN_GENERATED_KEYS)){
-            preparedStatement.setString(1,listName);
-            int affectedRows=preparedStatement.executeUpdate();
-            if(affectedRows>0){
+        String listName = scanner.nextLine();
+        String query = "INSERT INTO todolist (name) VALUE(?)";
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
+            preparedStatement.setString(1, listName);
+            int affectedRows = preparedStatement.executeUpdate();
+            if (affectedRows > 0) {
                 System.out.println("To Do List created successfully");
-            }else{
+                try (ResultSet generatedKeys = preparedStatement.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        int listId = generatedKeys.getInt(1);
+                        manageTasks(connection, listId);
+                    }
+
+                }
+            } else {
                 System.out.println("Error");
             }
 
+        }
+    }
+
+    private static void manageTasks(Connection connection, int listId) throws SQLException {
+        Scanner scanner = new Scanner(System.in);
+        while (true) {
+            System.out.println("1. Add Task\n2. View Tasks\n3. Back to Main Menu");
+            System.out.print("Choose an option: ");
+            int choice = scanner.nextInt();
+
+            switch (choice) {
+                case 1:
+                    addTask(connection, listId);
+                    break;
+                case 2:
+                    viewTasks(connection, listId);
+                    break;
+                case 3:
+                    return;
+                default:
+                    System.out.println("Invalid choice. Please try again.");
+            }
+        }
+    }
+
+
+    private static void addTask(Connection connection, int listId) throws SQLException {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Enter task title");
+        String title = scanner.nextLine();
+        System.out.println("Enter task description");
+        String description = scanner.nextLine();
+        System.out.println("Enter task due Date");
+        String dueDate = scanner.nextLine();
+        System.out.println("Enter task priority(high/medium/low)");
+        String priority = scanner.nextLine();
+        String query = "INSERT INTO task(todolist_id,title,description,due_date,priority,completed)" +
+                "VALUES(?,?,?,?,?,false)";
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+            preparedStatement.setInt(1, listId);
+            preparedStatement.setString(2, title);
+            preparedStatement.setString(3, description);
+            preparedStatement.setString(4, dueDate);
+            preparedStatement.setString(5, priority);
+
+            int affectedRows = preparedStatement.executeUpdate();
+            if (affectedRows > 0) {
+                System.out.println("Task added successfully.");
+            } else {
+                System.out.println("Error adding task.");
+            }
+        }
+
+    }
+
+    private static void viewTasks(Connection connection, int listId) throws SQLException {
+        String query = "SELECT* FROM task WHERE todolist_id=?";
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+            preparedStatement.setInt(1, listId);
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                List<Task> tasks = new ArrayList<>();
+                while (resultSet.next()) {
+                    Task task = new Task();
+                    task.setId(resultSet.getInt("id"));
+                    task.setTitle(resultSet.getString("title"));
+                    task.setDescription(resultSet.getString("description"));
+                    task.setDueDate(resultSet.getString("due_date"));
+                    task.setPriority(resultSet.getString("priority"));
+                    task.setCompleted(resultSet.getBoolean("completed"));
+                    tasks.add(task);
+                }
+                if (tasks.isEmpty()) {
+                    System.out.println("no tasks found for this list");
+                } else {
+                    for (Task task : tasks) {
+                        System.out.println(task);
+                    }
+                }
+            }
+
+        }
+    }
+
+    private static void viewToDoLists(Connection connection) throws SQLException {
+        String selectListsQuery = "SELECT * FROM todolist";
+        try (Statement statement = connection.createStatement()) {
+            try (ResultSet resultSet = statement.executeQuery(selectListsQuery)) {
+                List<ToDoList> toDoLists = new ArrayList<>();
+                while (resultSet.next()) {
+                    ToDoList toDoList = new ToDoList();
+                    toDoList.setId(resultSet.getInt("id"));
+                    toDoList.setName(resultSet.getString("name"));
+                    toDoLists.add(toDoList);
+                }
+                if (toDoLists.isEmpty()) {
+                    System.out.println("No ToDo Lists found.");
+                } else {
+                    for (ToDoList toDoList : toDoLists) {
+                        System.out.println(toDoList);
+                    }
+                    System.out.println("Enter to do list id to manage or 0 to go back");
+                    Scanner scanner= new Scanner(System.in);
+                    int listId=scanner.nextInt();
+                    if(listId !=0){
+                        manageTasks(connection,listId);
+                    }
+                }
+
+            }
         }
     }
 }
